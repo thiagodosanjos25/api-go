@@ -1,0 +1,64 @@
+version: "3.7"
+
+services:
+  api-go:
+    build:
+      context: ../
+      dockerfile: build/docker/Dockerfile
+    image: thiagoanjosDev/api-go:${ENV_TAG}
+    container_name: api-go
+    restart: always
+    environment:
+      - 'ALLOWED_PARAM={"Origins": [""], "Headers": [""], "Methods": ["GET", "POST"]}'
+      - DB_NAME=${ENV_DB_NAME}
+      - DB_HOST=${ENV_DB_HOST}
+      - DB_PORT=${ENV_DB_PORT}
+      - DB_USER=${ENV_DB_USER}
+      - DB_PSWD=${ENV_DB_PSWD}
+      - ENABLE_LOG_FILE=${ENV_ENABLE_LOG_FILE}
+      - LOG_FILE=${ENV_LOG_FILE}
+      - REDIS_HOST=${ENV_REDIS_HOST}
+      - REDIS_PSWD=${ENV_REDIS_PSWD}
+      - NEWRELIC_TOKEN=${ENV_NEWRELIC_TOKEN}
+      - PORT=${ENV_PORT}
+    ports:
+      - ${ENV_PORT}:${ENV_PORT}
+    depends_on:
+      - api-database
+      - api-redis
+    volumes:
+      - /logs/log:${ENV_LOG_FILE} 
+    networks: 
+      - go-api-networks
+
+  api-redis:
+    image: redis:${ENV_VERSION_REDIS} 
+    container_name: redis
+    command: redis-server
+    restart: always
+    networks: 
+      - go-api-networks
+
+  api-database:
+    image: postgres:${ENV_VERSION_POSTGRES} 
+    container_name: api-database
+    environment:
+      POSTGRES_DB: ${ENV_DB_NAME} 
+      POSTGRES_USER: ${ENV_DB_USER}
+      POSTGRES_PASSWORD: ${ENV_DB_PSWD}
+    restart: always
+    volumes:
+      # - ../cmd/api-database/migration.sql:/docker-entrypoint-initdb.d
+      - api-data:/var/lib/postgresql/data
+    ports:
+      - ${ENV_DB_PORT_EXT}:5432 
+    networks: 
+      - go-api-networks
+
+volumes:
+  api-data:
+
+networks:
+  go-api-networks:
+    driver: bridge
+
