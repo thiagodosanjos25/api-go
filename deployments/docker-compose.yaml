@@ -1,0 +1,77 @@
+version: "3.7"
+
+services:
+  api-go:
+    build:
+      context: ../
+      dockerfile: build/docker/Dockerfile
+    image: thiagodev/api-go:${ENV_TAG}
+    container_name: api-go
+    restart: always
+    environment:
+      - 'ALLOWED_PARAM={"Origins": [""], "Headers": [""], "Methods": ["GET", "POST"]}'
+      - DB_NAME=${ENV_DB_NAME}
+      - DB_HOST=${ENV_DB_HOST}
+      - DB_PORT=${ENV_DB_PORT}
+      - DB_USER=${ENV_DB_USER}
+      - DB_PSWD=${ENV_DB_PSWD}
+      - ENABLE_LOG_FILE=${ENV_ENABLE_LOG_FILE}
+      - LOG_FILE=${ENV_LOG_FILE}
+      - REDIS_URL=${ENV_REDIS_URL}
+      - RABBITMQ_URL=${ENV_RABBITMQ_URL}
+      - NEWRELIC_TOKEN=${ENV_NEWRELIC_TOKEN}
+      - PORT=${ENV_PORT}
+    ports:
+      - ${ENV_PORT}:${ENV_PORT}
+    depends_on:
+      - api-database
+      - api-redis
+    volumes:
+      - /logs/log:${ENV_LOG_FILE} 
+    networks: 
+      - go-api-networks
+
+  api-redis:
+    image: redis:${ENV_VERSION_REDIS} 
+    container_name: redis
+    command: redis-server
+    restart: always
+    networks: 
+      - go-api-networks
+
+  api-database:
+    image: postgres:${ENV_VERSION_POSTGRES} 
+    container_name: api-database
+    environment:
+      POSTGRES_DB: ${ENV_DB_NAME} 
+      POSTGRES_USER: ${ENV_DB_USER}
+      POSTGRES_PASSWORD: ${ENV_DB_PSWD}
+    restart: always
+    volumes:
+      - ../cmd/api-database/:/docker-entrypoint-initdb.d
+      - api-data:/var/lib/postgresql/data
+    ports:
+      - ${ENV_DB_PORT_EXT}:5432 
+    networks: 
+      - go-api-networks
+
+  message-queue:
+    image: rabbitmq:${ENV_VERSION_RABBITMQ}
+    container_name: message-queue
+    ports:
+      - ${ENV_QUEUE_PORT_EXT}:5672   # Consumo das mensagens
+      - ${ENV_GUI_PORT_EXT}:15672    # Interface gráfica
+    volumes:
+      - rabbitmq-data/:/var/lib/rabbitmq
+    restart: always
+    networks:
+      - go-api-networks
+
+volumes:
+  api-data:
+  rabbitmq-data:
+
+networks:
+  go-api-networks:
+    driver: bridge
+
