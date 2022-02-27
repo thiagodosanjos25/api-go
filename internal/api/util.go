@@ -50,7 +50,7 @@ func encrypt(senha string) string {
 			}
 		}
 		byteAux, _ := strconv.Atoi(byte)
-		saida += string(dec(byteAux))
+		saida += string(rune(dec(byteAux)))
 	}
 	return saida
 }
