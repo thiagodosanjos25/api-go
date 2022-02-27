@@ -6,15 +6,13 @@ import (
 	redis "gopkg.in/redis.v4"
 
 	newrelic "github.com/newrelic/go-agent"
+	"github.com/streadway/amqp"
 )
 
 //Handler ...
 type Handler struct {
-	Relic        newrelic.Application
-	ClientRedis  *redis.Client
-	DB           *database.DataBase
-	DBAux        *database.DataBase
-	HostsVálidos []string
-	// SnetLog      *snetlog.Log
-	GodinAuthURL string
+	Relic       newrelic.Application
+	ClientRedis *redis.Client
+	DB          *database.DataBase
+	RabbitMQ    *amqp.Connection
 }
