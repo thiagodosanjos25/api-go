@@ -20,8 +20,8 @@ type Configuracoes struct {
 	DBBizSenha    string `json:"DBBizSenha" env:"DB_PSWD"`
 	EnableLogFile bool   `json:"enableLogFile" env:"ENABLE_LOG_FILE"`
 	LogFile       string `json:"logFile" env:"LOG_FILE"`
-	RedisHost     string `json:"redisHost" env:"REDIS_HOST"`
-	RedisSenha    string `json:"redisSenha" env:"REDIS_PSWD"`
+	RedisURL      string `json:"redisURL" env:"REDIS_URL"`
+	RabbitMQUrl   string `json:"rabbitMQURL" env:"RABBITMQ_URL"`
 	NewRelicToken string `json:"newRelicToken" env:"NEWRELIC_TOKEN"`
 	Port          int    `json:"port" env:"PORT"`
 	AllowedParam  string `json:"allowedParam" env:"ALLOWED_PARAM"`

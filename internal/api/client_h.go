@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -11,18 +13,20 @@ import (
 
 // HandlerAddClient ...
 func (h *Handler) HandlerAddClient(w http.ResponseWriter, r *http.Request) {
-	mc := &Client{}
+	c := &Client{}
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&mc); err != nil {
+	if err := decoder.Decode(&c); err != nil {
+		log.Println(fmt.Sprintf("Erro no formato do Json.  Mensagem: %v", err.Error()))
 		core.RespondErro(w, r, http.StatusBadRequest,
 			&core.ErrMessage{Erro: err.Error(), Code: strconv.Itoa(http.StatusBadRequest),
 				Message: "Erro no formato do Json"})
 		return
 	}
 
-	obj, err := mc.add(h)
+	obj, err := c.add(h)
 	if err != nil {
+		log.Println(fmt.Sprintf("Erro na função. Mensagem: %v", err.Error()))
 		core.RespondErro(w, r, http.StatusBadRequest,
 			&core.ErrMessage{Erro: err.Error(), Code: strconv.Itoa(http.StatusBadRequest),
 				Message: "Erro na função"})
@@ -31,7 +35,7 @@ func (h *Handler) HandlerAddClient(w http.ResponseWriter, r *http.Request) {
 
 	response := &RespClient{Client: obj}
 	response.Code = strconv.Itoa(http.StatusCreated)
-	response.Message = "OK"
+	response.Message = "Sucesso"
 
 	core.Respond(w, r, http.StatusCreated, response)
 	return
@@ -39,16 +43,13 @@ func (h *Handler) HandlerAddClient(w http.ResponseWriter, r *http.Request) {
 
 // HandlerListClient ...
 func (h *Handler) HandlerListClients(w http.ResponseWriter, r *http.Request) {
-	mc := &Client{}
-	dataInicio := r.URL.Query().Get("dataInicio")
-	dataFim := r.URL.Query().Get("dataFim")
-	titulo := r.URL.Query().Get("titulo")
-	idSubRede, _ := strconv.Atoi(r.URL.Query().Get("idSubRede"))
-	idEstabelecimento, _ := strconv.Atoi(r.URL.Query().Get("idEstabelecimento"))
-	idTerminal, _ := strconv.Atoi(r.URL.Query().Get("idTerminal"))
+	c := &Client{}
+	name := r.URL.Query().Get("name")
+	situation := r.URL.Query().Get("situation")
 
-	obj, err := mc.list(dataInicio, dataFim, titulo, idSubRede, idEstabelecimento, idTerminal, h)
+	obj, err := c.list(name, situation, h)
 	if err != nil {
+		log.Println(fmt.Sprintf("Erro na função. Mensagem: %v", err.Error()))
 		core.RespondErro(w, r, http.StatusBadRequest,
 			&core.ErrMessage{Erro: err.Error(),
 				Code:    strconv.Itoa(http.StatusBadRequest),
@@ -58,7 +59,7 @@ func (h *Handler) HandlerListClients(w http.ResponseWriter, r *http.Request) {
 
 	response := &RespClients{Client: obj}
 	response.Code = strconv.Itoa(http.StatusOK)
-	response.Message = "OK"
+	response.Message = "Sucesso"
 
 	core.Respond(w, r, http.StatusOK, response)
 	return
@@ -67,12 +68,13 @@ func (h *Handler) HandlerListClients(w http.ResponseWriter, r *http.Request) {
 // HandlerGetClient ...
 func (h *Handler) HandlerGetClient(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	idMensagem, _ := strconv.Atoi(vars["id"])
+	idClient, _ := strconv.Atoi(vars["id"])
 
-	mc := &Client{}
+	c := &Client{}
 
-	obj, err := mc.get(idMensagem, h)
+	obj, err := c.get(idClient, h)
 	if err != nil {
+		log.Println(fmt.Sprintf("Erro na função. Mensagem: %v", err.Error()))
 		core.RespondErro(w, r, http.StatusBadRequest,
 			&core.ErrMessage{Erro: err.Error(),
 				Code:    strconv.Itoa(http.StatusBadRequest),
@@ -82,7 +84,7 @@ func (h *Handler) HandlerGetClient(w http.ResponseWriter, r *http.Request) {
 
 	response := &RespClients{Client: obj}
 	response.Code = strconv.Itoa(http.StatusOK)
-	response.Message = "OK"
+	response.Message = "Sucesso"
 
 	core.Respond(w, r, http.StatusOK, response)
 	return
@@ -91,20 +93,22 @@ func (h *Handler) HandlerGetClient(w http.ResponseWriter, r *http.Request) {
 // HandlerUpdateClient ...
 func (h *Handler) HandlerUpdateClient(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	idMensagem, _ := strconv.Atoi(vars["id"])
+	idClient, _ := strconv.Atoi(vars["id"])
 
-	mc := &Client{}
+	c := &Client{}
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&mc); err != nil {
+	if err := decoder.Decode(&c); err != nil {
+		log.Println(fmt.Sprintf("Erro no formato do Json.  Mensagem: %v", err.Error()))
 		core.RespondErro(w, r, http.StatusBadRequest,
 			&core.ErrMessage{Erro: err.Error(), Code: strconv.Itoa(http.StatusBadRequest),
 				Message: "Erro no formato do Json"})
 		return
 	}
 
-	obj, err := mc.update(idMensagem, h)
+	obj, err := c.update(idClient, h)
 	if err != nil {
+		log.Println(fmt.Sprintf("Erro na função. Mensagem: %v", err.Error()))
 		core.RespondErro(w, r, http.StatusBadRequest,
 			&core.ErrMessage{Erro: err.Error(), Code: strconv.Itoa(http.StatusBadRequest),
 				Message: "Erro na função"})
@@ -113,7 +117,7 @@ func (h *Handler) HandlerUpdateClient(w http.ResponseWriter, r *http.Request) {
 
 	response := &RespClient{Client: obj}
 	response.Code = strconv.Itoa(http.StatusOK)
-	response.Message = "OK"
+	response.Message = "Sucesso"
 
 	core.Respond(w, r, http.StatusOK, response)
 	return
@@ -122,12 +126,13 @@ func (h *Handler) HandlerUpdateClient(w http.ResponseWriter, r *http.Request) {
 // HandleDeleteClient ...
 func (h *Handler) HandlerDeleteClient(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	idMensagem, _ := strconv.Atoi(vars["id"])
+	idClient, _ := strconv.Atoi(vars["id"])
 
-	mc := &Client{}
+	c := &Client{}
 
-	obj, err := mc.delete(idMensagem, h)
+	obj, err := c.delete(idClient, h)
 	if err != nil {
+		log.Println(fmt.Sprintf("Erro na função. Mensagem: %v", err.Error()))
 		core.RespondErro(w, r, http.StatusBadRequest,
 			&core.ErrMessage{Erro: err.Error(), Code: strconv.Itoa(http.StatusBadRequest),
 				Message: "Erro na função"})
@@ -136,7 +141,7 @@ func (h *Handler) HandlerDeleteClient(w http.ResponseWriter, r *http.Request) {
 
 	response := &RespClient{Client: obj}
 	response.Code = strconv.Itoa(http.StatusOK)
-	response.Message = "OK"
+	response.Message = "Sucesso"
 
 	core.Respond(w, r, http.StatusOK, response)
 	return

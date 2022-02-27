@@ -1,24 +1,27 @@
 package api
 
 import (
+	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/pkg/errors"
+	"github.com/streadway/amqp"
 	"github.org/api-go/internal/database"
 )
 
 // Client ...
 type Client struct {
-	IdMensagem        int    `json:"idMensagem"`
-	IdSubRede         int    `json:"idSubRede"`
-	IdEstabelecimento int    `json:"idEstabelecimento"`
-	IdTerminal        int    `json:"idTerminal"`
-	IdUsuario         int    `json:"idUsuario"`
-	Titulo            string `json:"titulo"`
-	Mensagem          string `json:"mensagem"`
-	DataInicio        string `json:"dataInicio"`
-	DataFim           string `json:"dataFim"`
-	Ativo             bool   `json:"ativo"`
+	Id         int     `json:"Id"`
+	Name       string  `json:"name"`
+	Gender     string  `json:"Gender"`
+	Weight     float64 `json:"weight"`
+	Height     float64 `json:"height"`
+	Imc        float64 `json:"imc"`
+	Situation  string  `json:"Situation"`
+	Created_at string  `json:"created_at"`
+	Update_at  string  `json:"update_at"`
+	Active     bool    `json:"active"`
 }
 
 // RespClients ...
@@ -33,127 +36,236 @@ type RespClient struct {
 	Client *Client `json:"client"`
 }
 
-func (mc *Client) add(h *Handler) (*Client, error) {
+func (c *Client) add(h *Handler) (*Client, error) {
 
-	if !(mc.Titulo != "") || !(mc.Mensagem != "") || !(mc.DataInicio != "") || !(mc.DataFim != "") || !(mc.IdUsuario != 0) {
-		return nil, ErrCamposObrigatorios
+	if err := validateFields(c); err != nil {
+		return nil, err
 	}
 
-	row, erro := h.DB.SelectSliceScan(sqlAddClient, nil, mc.IdSubRede, mc.IdSubRede, mc.IdEstabelecimento, mc.IdEstabelecimento, mc.IdTerminal, mc.IdTerminal, mc.Titulo, mc.Mensagem, mc.DataInicio, mc.DataFim, mc.Ativo, mc.IdUsuario)
-	if erro != nil {
-		return nil, errors.Wrap(erro, "Erro ao tentar inserir Mensagem Circular. Mensagem:")
+	c.Imc, c.Situation = generateIMCandSituation(c.Weight, c.Height)
+
+	row, err := h.DB.SelectSliceScan(sqlAddClient, nil, c.Name, c.Gender, c.Weight, c.Height, c.Imc, c.Situation)
+	if err != nil {
+		return nil, errors.Wrap(err, "Erro ao tentar inserir Cliente. Mensagem:")
 	}
 
-	mc.IdMensagem, _ = strconv.Atoi(rowNil(row[0], 0))
+	err = sendMessageRabbitMQ(fmt.Sprintf("Cliente cadastrado com sucesso! Nome: %v", rowNil(row[0], 1)), h)
+	if err != nil {
+		return nil, errors.Wrap(err, "Erro ao enviar mensagem ao RabbitMQ. Mensagem:")
+	}
 
-	return mc, erro
+	c.Id, _ = strconv.Atoi(rowNil(row[0], 0))
+	c.Name = rowNil(row[0], 1)
+	c.Gender = rowNil(row[0], 2)
+	c.Weight, _ = strconv.ParseFloat(rowNil(row[0], 3), 64)
+	c.Height, _ = strconv.ParseFloat(rowNil(row[0], 4), 64)
+	c.Imc, _ = strconv.ParseFloat(rowNil(row[0], 5), 64)
+	c.Situation = rowNil(row[0], 6)
+	c.Created_at = rowNil(row[0], 7)
+	c.Update_at = rowNil(row[0], 8)
+	c.Active, _ = strconv.ParseBool(rowNil(row[0], 9))
+
+	return c, err
 }
 
-func (mc *Client) list(dataInicio string, dataFim string, titulo string, idSubRede int, idEstabelecimento int, idTerminal int, h *Handler) ([]*Client, error) {
+func (c *Client) list(name, situation string, h *Handler) ([]*Client, error) {
 
-	if !(dataInicio != "") || !(dataFim != "") {
-		return nil, ErrCamposObrigatorios
-	}
-
-	rows, erro := h.DB.SelectSliceScan(sqlListClients, nil, dataInicio, dataFim, titulo, titulo,
-		idSubRede, idSubRede, idEstabelecimento, idEstabelecimento, idTerminal, idTerminal)
-	if erro != nil {
-		if erro == database.ErrNoRows {
+	rows, err := h.DB.SelectSliceScan(sqlListClients, nil, name, name, situation, situation)
+	if err != nil {
+		if err == database.ErrNoRows {
 			return nil, ErrNoRowsGeneric
 		}
-		return nil, errors.Wrap(erro, "Erro ao tentar listar Mensagem Circular. Mensagem:")
+		return nil, errors.Wrap(err, "Erro ao tentar listar Clientes. Mensagem:")
 	}
 
 	clients := make([]*Client, 0, len(rows))
 
 	for _, row := range rows {
-		mcAux := new(Client)
+		cAux := new(Client)
 
-		mcAux.IdMensagem, _ = strconv.Atoi(row[0].(string))
-		mcAux.IdSubRede, _ = strconv.Atoi(row[1].(string))
-		mcAux.IdEstabelecimento, _ = strconv.Atoi(row[2].(string))
-		mcAux.IdTerminal, _ = strconv.Atoi(row[3].(string))
-		mcAux.Titulo = row[4].(string)
-		mcAux.Mensagem = row[5].(string)
-		mcAux.DataInicio = row[6].(string)
-		mcAux.DataFim = row[7].(string)
-		mcAux.IdUsuario, _ = strconv.Atoi(row[8].(string))
-		mcAux.Ativo, _ = strconv.ParseBool(row[9].(string))
+		cAux.Id, _ = strconv.Atoi(row[0].(string))
+		cAux.Name = row[1].(string)
+		cAux.Gender = row[2].(string)
+		cAux.Weight, _ = strconv.ParseFloat(row[3].(string), 64)
+		cAux.Height, _ = strconv.ParseFloat(row[4].(string), 64)
+		cAux.Imc, _ = strconv.ParseFloat(row[5].(string), 64)
+		cAux.Situation = row[6].(string)
+		cAux.Created_at = row[7].(string)
+		cAux.Update_at = row[8].(string)
+		cAux.Active, _ = strconv.ParseBool(row[9].(string))
 
-		clients = append(clients, mcAux)
+		clients = append(clients, cAux)
 	}
 
-	return clients, erro
+	return clients, err
 }
 
-func (mc *Client) get(idClient int, h *Handler) ([]*Client, error) {
+func (c *Client) get(idClient int, h *Handler) ([]*Client, error) {
 
-	row, erro := h.DB.SelectSliceScan(sqlGetClient, nil, idClient)
-	if erro != nil {
-		if erro == database.ErrNoRows {
+	row, err := h.DB.SelectSliceScan(sqlGetClient, nil, idClient)
+	if err != nil {
+		if err == database.ErrNoRows {
 			return nil, ErrNoRowsGeneric
 		}
-		return nil, errors.Wrap(erro, "Erro ao tentar listar Mensagem Circular. Mensagem:")
+		return nil, errors.Wrap(err, "Erro ao tentar listar Cliente. Mensagem:")
 	}
 
-	mensagemCircular := make([]*Client, 0, len(row))
+	cliente := make([]*Client, 0, len(row))
 
-	mc.IdMensagem, _ = strconv.Atoi(rowNil(row[0], 0))
-	mc.IdSubRede, _ = strconv.Atoi(rowNil(row[0], 1))
-	mc.IdEstabelecimento, _ = strconv.Atoi(rowNil(row[0], 2))
-	mc.IdTerminal, _ = strconv.Atoi(rowNil(row[0], 3))
-	mc.Titulo = rowNil(row[0], 4)
-	mc.Mensagem = rowNil(row[0], 5)
-	mc.DataInicio = rowNil(row[0], 6)
-	mc.DataFim = rowNil(row[0], 7)
-	mc.IdUsuario, _ = strconv.Atoi(rowNil(row[0], 8))
-	mc.Ativo, _ = strconv.ParseBool(rowNil(row[0], 9))
+	c.Id, _ = strconv.Atoi(rowNil(row[0], 0))
+	c.Name = rowNil(row[0], 1)
+	c.Gender = rowNil(row[0], 2)
+	c.Weight, _ = strconv.ParseFloat(rowNil(row[0], 3), 64)
+	c.Height, _ = strconv.ParseFloat(rowNil(row[0], 4), 64)
+	c.Imc, _ = strconv.ParseFloat(rowNil(row[0], 5), 64)
+	c.Situation = rowNil(row[0], 6)
+	c.Created_at = rowNil(row[0], 7)
+	c.Update_at = rowNil(row[0], 8)
+	c.Active, _ = strconv.ParseBool(rowNil(row[0], 9))
 
-	mensagemCircular = append(mensagemCircular, mc)
+	cliente = append(cliente, c)
 
-	return mensagemCircular, erro
+	return cliente, err
 }
 
-func (mc *Client) update(idMensagem int, h *Handler) (*Client, error) {
+func (c *Client) update(idClient int, h *Handler) (*Client, error) {
 
-	if !(mc.Titulo != "") || !(mc.Mensagem != "") || !(mc.DataInicio != "") || !(mc.DataFim != "") || !(mc.IdUsuario != 0) {
-		return nil, ErrCamposObrigatorios
+	if err := validateFields(c); err != nil {
+		return nil, err
 	}
 
-	row, erro := h.DB.SelectSliceScan(sqlUpdateClient, nil, mc.IdSubRede, mc.IdSubRede, mc.IdEstabelecimento, mc.IdEstabelecimento, mc.IdTerminal, mc.IdTerminal,
-		mc.Titulo, mc.Mensagem, mc.DataInicio, mc.DataFim, mc.IdUsuario, mc.Ativo, idMensagem)
-	if erro != nil {
-		if erro == database.ErrNoRows {
+	c.Imc, c.Situation = generateIMCandSituation(c.Weight, c.Height)
+
+	row, err := h.DB.SelectSliceScan(sqlUpdateClient, nil, c.Name, c.Gender, c.Weight, c.Height, c.Imc, c.Situation, c.Active, idClient)
+	if err != nil {
+		if err == database.ErrNoRows {
 			return nil, ErrNoRowsGeneric
 		}
-		return nil, errors.Wrap(erro, "Erro ao tentar editar Mensagem Circular. Mensagem:")
+		return nil, errors.Wrap(err, "Erro ao tentar editar Cliente. Mensagem:")
 	}
 
-	mc.IdMensagem, _ = strconv.Atoi(rowNil(row[0], 0))
+	err = sendMessageRabbitMQ(fmt.Sprintf("Cliente editado com sucesso! Nome: %v", rowNil(row[0], 1)), h)
+	if err != nil {
+		return nil, errors.Wrap(err, "Erro ao enviar mensagem ao RabbitMQ. Mensagem:")
+	}
 
-	return mc, erro
+	c.Id, _ = strconv.Atoi(rowNil(row[0], 0))
+	c.Name = rowNil(row[0], 1)
+	c.Gender = rowNil(row[0], 2)
+	c.Weight, _ = strconv.ParseFloat(rowNil(row[0], 3), 64)
+	c.Height, _ = strconv.ParseFloat(rowNil(row[0], 4), 64)
+	c.Imc, _ = strconv.ParseFloat(rowNil(row[0], 5), 64)
+	c.Situation = rowNil(row[0], 6)
+	c.Created_at = rowNil(row[0], 7)
+	c.Update_at = rowNil(row[0], 8)
+	c.Active, _ = strconv.ParseBool(rowNil(row[0], 9))
+
+	return c, err
 }
 
-func (mc *Client) delete(idMensagem int, h *Handler) (*Client, error) {
+func (c *Client) delete(idClient int, h *Handler) (*Client, error) {
 
-	row, erro := h.DB.SelectSliceScan(sqlDeleteClient, nil, idMensagem)
-	if erro != nil {
-		if erro == database.ErrNoRows {
+	row, err := h.DB.SelectSliceScan(sqlDeleteClient, nil, idClient)
+	if err != nil {
+		if err == database.ErrNoRows {
 			return nil, ErrNoRowsGeneric
 		}
-		return nil, errors.Wrap(erro, "Erro ao tentar deletar Mensagem Circular. Mensagem:")
+		return nil, errors.Wrap(err, "Erro ao tentar deletar Cliente. Mensagem:")
 	}
 
-	mc.IdMensagem, _ = strconv.Atoi(rowNil(row[0], 0))
-	mc.IdSubRede, _ = strconv.Atoi(rowNil(row[0], 1))
-	mc.IdEstabelecimento, _ = strconv.Atoi(rowNil(row[0], 2))
-	mc.IdTerminal, _ = strconv.Atoi(rowNil(row[0], 3))
-	mc.Titulo = rowNil(row[0], 4)
-	mc.Mensagem = rowNil(row[0], 5)
-	mc.DataInicio = rowNil(row[0], 6)
-	mc.DataFim = rowNil(row[0], 7)
-	mc.IdUsuario, _ = strconv.Atoi(rowNil(row[0], 8))
-	mc.Ativo, _ = strconv.ParseBool(rowNil(row[0], 9))
+	err = sendMessageRabbitMQ(fmt.Sprintf("Cliente deletado com sucesso! Nome: %v", rowNil(row[0], 1)), h)
+	if err != nil {
+		return nil, errors.Wrap(err, "Erro ao enviar mensagem ao RabbitMQ. Mensagem:")
+	}
 
-	return mc, erro
+	c.Id, _ = strconv.Atoi(rowNil(row[0], 0))
+	c.Name = rowNil(row[0], 1)
+	c.Gender = rowNil(row[0], 2)
+	c.Weight, _ = strconv.ParseFloat(rowNil(row[0], 3), 64)
+	c.Height, _ = strconv.ParseFloat(rowNil(row[0], 4), 64)
+	c.Imc, _ = strconv.ParseFloat(rowNil(row[0], 5), 64)
+	c.Situation = rowNil(row[0], 6)
+	c.Created_at = rowNil(row[0], 7)
+	c.Update_at = rowNil(row[0], 8)
+	c.Active, _ = strconv.ParseBool(rowNil(row[0], 9))
+
+	return c, err
+}
+
+func validateFields(c *Client) error {
+	if !(c.Name != "") || !(c.Gender != "") || !(c.Weight != 0) || !(c.Height != 0) {
+		return ErrCamposObrigatorios
+	}
+	return nil
+}
+
+func generateIMCandSituation(weight, heigh float64) (imc float64, situation string) {
+
+	imc = weight / (heigh * heigh)
+
+	if imc < 18.5 {
+		situation = "Abaixo do peso"
+	} else if imc >= 18.5 && imc <= 24.9 {
+		situation = "Peso normal"
+	} else if imc >= 25 && imc <= 29.9 {
+		situation = "Sobrepeso"
+	} else if imc >= 30 && imc <= 34.9 {
+		situation = "Obesidade grau 1"
+	} else if imc >= 35 && imc <= 39.9 {
+		situation = "Obesidade grau 2"
+	} else {
+		situation = "Obesidade grau 3"
+	}
+
+	return imc, situation
+}
+
+func sendMessageRabbitMQ(message string, h *Handler) error {
+
+	channelRabbitMQ, err := h.RabbitMQ.Channel()
+	if err != nil {
+		return err
+	}
+	defer channelRabbitMQ.Close()
+
+	_, err = channelRabbitMQ.QueueDeclare(
+		"QueueClient", // queue name
+		true,          // durable
+		false,         // auto delete
+		false,         // exclusive
+		false,         // no wait
+		nil,           // arguments
+	)
+	if err != nil {
+		return err
+	}
+
+	messageAmqp := amqp.Publishing{
+		Headers:         map[string]interface{}{},
+		ContentType:     "CRUD API-GO",
+		ContentEncoding: "",
+		DeliveryMode:    0,
+		Priority:        0,
+		CorrelationId:   "",
+		ReplyTo:         "",
+		Expiration:      "",
+		MessageId:       message,
+		Timestamp:       time.Time{},
+		Type:            "",
+		UserId:          "",
+		AppId:           "",
+		Body:            []byte(message),
+	}
+
+	if err := channelRabbitMQ.Publish(
+		"",            // exchange
+		"QueueClient", // queue name
+		false,         // mandatory
+		false,         // immediate
+		messageAmqp,   // message to publish
+	); err != nil {
+		return err
+	}
+
+	return nil
 }

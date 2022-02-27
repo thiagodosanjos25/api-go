@@ -9,7 +9,7 @@ import (
 	"github.org/api-go/internal/database"
 )
 
-//rowNil verifica se a coluna do select veio nula
+// rowNil verifica se a coluna do select veio nula
 func rowNil(r database.Row, column int) string {
 	if r[column] != nil {
 		return r.String(column)
@@ -28,7 +28,6 @@ func NewNullString(s string) sql.NullString {
 	}
 }
 
-// encrypt - Encrypt utilizado pelo Kronos-new
 func encrypt(senha string) string {
 
 	resultado := ""
@@ -95,18 +94,4 @@ func StrSizeCenter(valor string, tamanhoCampo int) string {
 	}
 
 	return fmt.Sprintf("%s", valorStr)
-}
-
-func PermissionRecarga(idArrecadadora int) (allowed bool) {
-
-	switch idArrecadadora {
-	case 9: // Arredadora Tete
-		allowed = true
-	case 631: // Arredadora Redeflex
-		allowed = true
-	default:
-		allowed = false
-	}
-
-	return allowed
 }

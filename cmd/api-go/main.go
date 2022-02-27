@@ -9,8 +9,10 @@ import (
 	"os"
 	"time"
 
+	redis "github.com/go-redis/redis"
 	newrelic "github.com/newrelic/go-agent"
 	"github.com/rs/cors"
+	"github.com/streadway/amqp"
 	"github.org/api-go/config"
 	"github.org/api-go/internal/api"
 	"github.org/api-go/internal/database"
@@ -31,31 +33,37 @@ func init() {
 
 func main() {
 	flag.Parse()
-
-	appName := "Api-Go (Versao: prd_lts)"
-	log.Println(appName)
-
+	log.Println("Api-Go (Versao: prd_lts)")
 	config := config.NewConfig(arqConfig)
 
-	configNewRelic := newrelic.NewConfig("godin-logistica-arrecada", config.NewRelicToken)
+	configNewRelic := newrelic.NewConfig("api-go", config.NewRelicToken)
 	app, err := newrelic.NewApplication(configNewRelic)
 	if err != nil {
 		log.Println("Erro ao iniciar o New Relic. Erro:", err)
 	}
 
-	// log.Printf("INFO: Tentando conectar no Redis... ")
-	// log.Println(config.RedisHost)
-	// clientRedis := redis.NewClient(&redis.Options{
-	// 	Addr:     config.RedisHost,
-	// 	Password: config.RedisSenha,
-	// 	DB:       0,
-	// })
-	// _, err = clientRedis.Ping().Result()
-	// if err != nil {
-	// 	log.Println("Erro ao iniciar o cache redis. Erro=", err)
-	// 	panic("Cache Redis não foi iniciado com sucesso.")
-	// }
-	// fmt.Printf("Conectado Redis.\n")
+	log.Printf("Tentando conectar no Redis...")
+	redisOption, err := redis.ParseURL(config.RedisURL)
+	if err != nil {
+		log.Println("Erro no ParseURL cache redis. Erro=", err)
+		panic("Cache Redis não foi iniciado com sucesso.")
+	}
+	clientRedis := redis.NewClient(redisOption)
+	_, err = clientRedis.Ping().Result()
+	if err != nil {
+		log.Println("Erro ao iniciar o cache redis. Erro=", err)
+		panic("Cache Redis não foi iniciado com sucesso.")
+	}
+
+	log.Printf("Conectado Redis.\n")
+
+	// connectRabbitMQ, err := amqp.Dial("amqp://guest:guest@message-queue:5672/")
+	connectRabbitMQ, err := amqp.Dial(config.RabbitMQUrl)
+	if err != nil {
+		log.Printf("Erro ao conectar no RabbitMQ. Mensagem:")
+	}
+
+	defer connectRabbitMQ.Close()
 
 	optionDB := &database.OptionsDB{DriverName: "postgres", IP: config.DBBizHost, Porta: config.DBBizPorta,
 		NomeDB: config.DBBizNome, User: config.DBBizUser, Senha: config.DBBizSenha, Debug: false, Alias: config.DBBizNome,
@@ -82,7 +90,7 @@ func main() {
 		Debug:          false,
 	})
 
-	hapi := &api.Handler{Relic: app, DB: db}
+	hapi := &api.Handler{Relic: app, DB: db, RabbitMQ: connectRabbitMQ}
 
 	router := api.Router(hapi)
 
