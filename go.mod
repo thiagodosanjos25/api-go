@@ -4,11 +4,13 @@ go 1.17
 
 require (
 	github.com/caarlos0/env v3.5.0+incompatible
+	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gorilla/mux v1.8.0
 	github.com/lib/pq v1.10.4
 	github.com/newrelic/go-agent v3.15.2+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/rs/cors v1.8.2
+	github.com/streadway/amqp v1.0.0
 	gopkg.in/redis.v4 v4.2.4
 )
 
