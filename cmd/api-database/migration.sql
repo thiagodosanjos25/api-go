@@ -1,0 +1,14 @@
+CREATE SCHEMA gym_schma;
+
+CREATE TABLE  gym_schma.clients (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    gender TEXT NOT NULL,
+    weight NUMERIC NOT NULL,
+    height NUMERIC NOT NULL,
+    imc NUMERIC NOT NULL,
+    situation TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    active BOOL NOT NULL DEFAULT TRUE
+);
